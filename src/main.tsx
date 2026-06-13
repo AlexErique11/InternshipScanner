@@ -1,7 +1,16 @@
-// src/main.tsx
-import React from "react";
+import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import PasswordGate from "./PasswordGate";
+
+function Root() {
+  const [unlocked, setUnlocked] = useState(false);
+
+  if (!unlocked) {
+    return <PasswordGate onUnlock={() => setUnlocked(true)} />;
+  }
+  return <App onLock={() => setUnlocked(false)} />;
+}
 
 const rootElement = document.getElementById("root");
 if (rootElement === null) {
@@ -10,11 +19,10 @@ if (rootElement === null) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <App />
+    <Root />
   </React.StrictMode>
 );
 
-// Register the service worker so the app is installable and shell-cached.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((error) => {

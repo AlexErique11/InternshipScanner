@@ -25,6 +25,7 @@ import {
   loadSearchConfig,
   saveSearchConfig,
 } from "./storage";
+import { changePassword, saveToken } from "./auth";
 
 const SCAN_INTERVAL_HOURS = 20;
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -208,6 +209,65 @@ function RunLog({ runs }: { runs: ScanRun[] }) {
   );
 }
 
+// ---------- password change ----------
+
+function PasswordChangeSection() {
+  const [oldPass, setOldPass] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [status, setStatus] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function handleChange() {
+    if (newPass.length < 8) { setErrorMsg("New password must be at least 8 characters."); setStatus("error"); return; }
+    if (newPass !== confirmPass) { setErrorMsg("Passwords don't match."); setStatus("error"); return; }
+    setStatus("busy"); setErrorMsg("");
+    try {
+      const token = await changePassword(oldPass, newPass);
+      saveToken(token);
+      setStatus("done");
+      setOldPass(""); setNewPass(""); setConfirmPass("");
+      window.setTimeout(() => setStatus("idle"), 2000);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to change password.");
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div style={{ height: 1, background: C.line, marginBottom: 20 }} />
+      <h2 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 700, color: C.text, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: 0.5 }}>Security</h2>
+      <Field label="Current password">
+        <input type="password" autoComplete="current-password" value={oldPass}
+          onChange={(e) => { setOldPass(e.target.value); setStatus("idle"); setErrorMsg(""); }}
+          style={inputStyle} />
+      </Field>
+      <Field label="New password">
+        <input type="password" autoComplete="new-password" value={newPass}
+          onChange={(e) => { setNewPass(e.target.value); setStatus("idle"); setErrorMsg(""); }}
+          style={inputStyle} />
+      </Field>
+      <Field label="Confirm new password">
+        <input type="password" autoComplete="new-password" value={confirmPass}
+          onChange={(e) => { setConfirmPass(e.target.value); setStatus("idle"); setErrorMsg(""); }}
+          style={inputStyle} />
+      </Field>
+      {errorMsg !== "" && (
+        <div style={{ fontFamily: fontMono, fontSize: 11, color: C.red, marginBottom: 10 }}>{errorMsg}</div>
+      )}
+      <button disabled={status === "busy"} onClick={() => void handleChange()} style={{
+        width: "100%", fontFamily: fontDisplay, fontSize: 16, fontWeight: 700, letterSpacing: 1,
+        padding: 12, borderRadius: 5, border: "none", cursor: status === "busy" ? "wait" : "pointer",
+        background: status === "done" ? C.green : status === "busy" ? C.amberDim : C.amber,
+        color: C.bg, textTransform: "uppercase",
+      }}>
+        {status === "busy" ? "Changing…" : status === "done" ? "Changed ✓" : "Change password"}
+      </button>
+    </div>
+  );
+}
+
 // ---------- settings tab ----------
 
 interface SettingsTabProps {
@@ -350,7 +410,7 @@ function SettingsTab({ providerConfig, searchConfig, onSave }: SettingsTabProps)
 
 // ---------- root ----------
 
-export default function App() {
+export default function App({ onLock }: { onLock: () => void }) {
   const [state, setState] = useState<AppState | null>(null);
   const [providerConfig, setProviderConfig] = useState<ProviderConfig | null>(null);
   const [searchConfig, setSearchConfig] = useState<SearchConfig | null>(null);
@@ -483,11 +543,18 @@ export default function App() {
       <header style={{ padding: "18px 16px 10px", borderBottom: `1px solid ${C.line}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <h1 style={{ fontFamily: fontDisplay, fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: 0.5, textTransform: "uppercase" }}>
-            Open<span style={{ color: C.amber }}>Desk</span>
+            Internship<span style={{ color: C.amber }}>Scanner</span>
           </h1>
-          <span style={{ fontFamily: fontMono, fontSize: 10, color: C.dim }}>
-            {PROVIDER_LABELS[providerConfig.provider].toUpperCase()} · LAST SCAN {timeAgo(state.lastRun).toUpperCase()}
-          </span>
+          <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+            <span style={{ fontFamily: fontMono, fontSize: 10, color: C.dim }}>
+              {PROVIDER_LABELS[providerConfig.provider].toUpperCase()} · LAST SCAN {timeAgo(state.lastRun).toUpperCase()}
+            </span>
+            <button onClick={onLock} style={{
+              fontFamily: fontMono, fontSize: 10, letterSpacing: 0.5, padding: "3px 9px",
+              background: "transparent", color: C.dim, border: `1px solid ${C.line}`,
+              borderRadius: 3, cursor: "pointer",
+            }}>LOCK</button>
+          </div>
         </div>
         <div style={{ fontFamily: fontMono, fontSize: 10.5, color: C.dim, marginTop: 2 }}>INTERNSHIP RADAR · TU DELFT BCS · TRADING FIRST</div>
       </header>
@@ -539,7 +606,12 @@ export default function App() {
           </>
         )}
         {tab === "runs" && <RunLog runs={state.runs} />}
-        {tab === "settings" && <SettingsTab providerConfig={providerConfig} searchConfig={searchConfig} onSave={handleSaveSettings} />}
+        {tab === "settings" && (
+          <>
+            <SettingsTab providerConfig={providerConfig} searchConfig={searchConfig} onSave={handleSaveSettings} />
+            <PasswordChangeSection />
+          </>
+        )}
       </main>
 
       <footer style={{ padding: "6px 16px 22px", fontFamily: fontMono, fontSize: 9.5, color: C.dim, textAlign: "center" }}>
