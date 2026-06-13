@@ -35,6 +35,9 @@ interface Finding {
   url: string;
   pay: string;
   deadline: string;
+  applicationPeriod: string;
+  internshipPeriod: string;
+  targetYear: string;
   why: string;
 }
 
@@ -88,8 +91,16 @@ Extra priority: ${config.priorityNote}
 Today is ${today}. Use web search to find CURRENTLY OPEN or soon-opening opportunities that match the above. Skip anything already known: ${known}.
 
 Respond with ONLY a raw JSON object — no markdown fences, no prose before or after:
-{"queries":["the search query you ran"],"findings":[{"company":"","title":"","type":"trading"|"swe","location":"","url":"","pay":"","deadline":"","why":"one short sentence on fit or prestige"}]}
-Return at most ${limit} findings. Use "trading" for quant/trading roles and "swe" for software roles. If a field is unknown use "".
+{"queries":["the search query you ran"],"findings":[{"company":"","title":"","type":"trading"|"swe","location":"","url":"","pay":"","deadline":"","applicationPeriod":"","internshipPeriod":"","targetYear":"","why":""}]}
+
+Return at most ${limit} findings. Field definitions:
+- type: "trading" for quant/trading/prop-trading roles, "swe" for software engineering
+- deadline: application deadline date only (e.g. "31 Jan 2026")
+- applicationPeriod: full window applications are open (e.g. "Oct 2025 – Jan 2026")
+- internshipPeriod: when the internship/program itself runs (e.g. "Jun – Aug 2026")
+- targetYear: year of study targeted (e.g. "1st/2nd year BSc", "penultimate year", "any year")
+- why: one sentence on fit or prestige for this specific candidate
+- Leave any unknown field as ""
 
 STRICT URL RULE: The url field must be the exact, complete URL copied verbatim from your web search result — the direct link to the specific job posting page. Never guess, construct, abbreviate, or modify a URL. Never use a company homepage or a generic /careers page. If you did not get a direct posting URL from a search result, leave url as "". A missing URL is far better than a wrong one.`;
 }
@@ -237,6 +248,18 @@ function extractJsonObject(text: string): Record<string, unknown> {
   return record;
 }
 
+function isSpecificJobUrl(url: string): boolean {
+  if (url === "") return false;
+  try {
+    const path = new URL(url).pathname.replace(/\/$/, "");
+    if (path.length < 5) return false;
+    if (/^\/(careers?|jobs?|apply|work-?with-?us|join-?us|opportunities?|open-?positions?|positions?)$/i.test(path)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeFindings(raw: unknown[]): Finding[] {
   const findings: Finding[] = [];
   for (const item of raw) {
@@ -245,14 +268,18 @@ function normalizeFindings(raw: unknown[]): Finding[] {
     const company = asString(record.company);
     const title = asString(record.title);
     if (company === "" || title === "") continue;
+    const rawUrl = asString(record.url);
     findings.push({
       company,
       title,
       type: record.type === "trading" ? "trading" : "swe",
       location: asString(record.location),
-      url: asString(record.url),
+      url: isSpecificJobUrl(rawUrl) ? rawUrl : "",
       pay: asString(record.pay),
       deadline: asString(record.deadline),
+      applicationPeriod: asString(record.applicationPeriod),
+      internshipPeriod: asString(record.internshipPeriod),
+      targetYear: asString(record.targetYear),
       why: asString(record.why),
     });
   }

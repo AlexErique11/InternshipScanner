@@ -14,6 +14,9 @@ export interface Opportunity {
   url: string;
   pay: string;
   deadline: string;
+  applicationPeriod?: string;
+  internshipPeriod?: string;
+  targetYear?: string;
   why: string;
   status: OpportunityStatus;
   firstSeen: number;
@@ -73,6 +76,9 @@ export interface ScanApiResponse {
     url: string;
     pay: string;
     deadline: string;
+    applicationPeriod: string;
+    internshipPeriod: string;
+    targetYear: string;
     why: string;
   }>;
 }
