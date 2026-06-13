@@ -1,5 +1,5 @@
 // src/App.tsx
-// OpenDesk — configurable internship radar. Pick the AI (Claude / ChatGPT /
+// InternshipScanner — configurable internship radar. Pick the AI (Claude / ChatGPT /
 // Gemini), enter its key, and configure the search. Auto-scans on open when a
 // key is set and the last scan is older than SCAN_INTERVAL_HOURS.
 

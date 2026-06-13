@@ -1,6 +1,6 @@
 {
-  "name": "OpenDesk — Internship Radar",
-  "short_name": "OpenDesk",
+  "name": "InternshipScanner — Internship Radar",
+  "short_name": "InternshipScanner",
   "description": "Daily scan for trading & SWE internships",
   "start_url": "/",
   "display": "standalone",

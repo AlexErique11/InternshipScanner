@@ -1,4 +1,4 @@
-# OpenDesk — Internship Radar
+# InternshipScanner — Internship Radar
 
 A configurable daily web scan for trading & SWE internships and programs, built
 for a TU Delft BCS student. Trading prioritized, worldwide scope. Installs on
@@ -45,7 +45,7 @@ See the table above. For Gemini: sign in at aistudio.google.com with your
 ### 2. Put this project on GitHub
 Create a private repo at github.com, then from this folder:
 ```bash
-git init && git add . && git commit -m "OpenDesk"
+git init && git add . && git commit -m "InternshipScanner"
 git branch -M main
 git remote add origin https://github.com/YOUR_USERNAME/opendesk.git
 git push -u origin main
