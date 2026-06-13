@@ -7,7 +7,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { pbkdf2 as pbkdf2Cb, randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
+
+const kv = new Redis({
+  url: process.env.KV_REST_API_URL!,
+  token: process.env.KV_REST_API_TOKEN!,
+});
 
 const pbkdf2 = promisify(pbkdf2Cb);
 
