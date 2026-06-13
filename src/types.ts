@@ -1,7 +1,7 @@
 // src/types.ts
 
 export type OpportunityType = "trading" | "swe";
-export type OpportunityStatus = "new" | "saved" | "applied" | "hidden";
+export type OpportunityStatus = "new" | "saved" | "applied" | "hidden" | "expired";
 export type Provider = "anthropic" | "openai" | "gemini";
 export type Recency = "week" | "month" | "year" | "any";
 
@@ -126,4 +126,25 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   anthropic: "Claude",
   openai: "ChatGPT",
   gemini: "Gemini",
+};
+
+export const PROVIDER_MODELS: Record<Provider, Array<{ id: string; label: string }>> = {
+  anthropic: [
+    { id: "claude-sonnet-4-6",        label: "Claude Sonnet 4.6 — recommended" },
+    { id: "claude-opus-4-7",           label: "Claude Opus 4.7 — most capable" },
+    { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 — fastest" },
+  ],
+  openai: [
+    { id: "gpt-4.1",      label: "GPT-4.1 — recommended" },
+    { id: "gpt-4.1-mini", label: "GPT-4.1 Mini — cheaper" },
+    { id: "gpt-4o",       label: "GPT-4o" },
+    { id: "gpt-4o-mini",  label: "GPT-4o Mini — cheaper" },
+  ],
+  gemini: [
+    { id: "gemini-2.5-flash",      label: "Gemini 2.5 Flash — recommended" },
+    { id: "gemini-2.0-flash",      label: "Gemini 2.0 Flash" },
+    { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite — cheapest" },
+    { id: "gemini-1.5-pro",        label: "Gemini 1.5 Pro" },
+    { id: "gemini-1.5-flash",      label: "Gemini 1.5 Flash" },
+  ],
 };

@@ -16,6 +16,7 @@ import {
   SearchConfig,
   PROGRAM_TYPE_OPTIONS,
   PROVIDER_LABELS,
+  PROVIDER_MODELS,
 } from "./types";
 import {
   loadState,
@@ -155,6 +156,7 @@ function OpportunityCard({ opp, onSetStatus }: { opp: Opportunity; onSetStatus: 
         {opp.status === "new" && <Badge color={C.green}>▲ NEW</Badge>}
         {opp.status === "applied" && <Badge color={C.green} filled>APPLIED</Badge>}
         {opp.status === "saved" && <Badge color={C.steel}>SAVED</Badge>}
+        {opp.status === "expired" && <Badge color={C.red}>EXPIRED</Badge>}
       </div>
       <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, lineHeight: 1.1, color: C.text, textTransform: "uppercase" }}>{opp.company}</div>
       <div style={{ fontFamily: fontBody, fontSize: 14, color: C.text, margin: "3px 0 6px" }}>{opp.title}</div>
@@ -171,7 +173,11 @@ function OpportunityCard({ opp, onSetStatus }: { opp: Opportunity; onSetStatus: 
             color: C.bg, borderRadius: 4, textDecoration: "none", fontWeight: 500,
           }}>OPEN POSTING ↗</a>
         )}
-        {opp.status !== "saved" && <ActionButton label="SAVE" color={C.steel} onClick={() => onSetStatus(opp.id, "saved")} />}
+        <a href={`https://www.google.com/search?q=${encodeURIComponent(`${opp.company} ${opp.title} internship apply`)}`} target="_blank" rel="noopener noreferrer" style={{
+          fontFamily: fontMono, fontSize: 11, padding: "7px 12px", background: "transparent",
+          color: C.dim, border: `1px solid ${C.line}`, borderRadius: 4, textDecoration: "none",
+        }}>SEARCH ↗</a>
+        {opp.status !== "saved" && opp.status !== "expired" && <ActionButton label="SAVE" color={C.steel} onClick={() => onSetStatus(opp.id, "saved")} />}
         {opp.status !== "applied" && <ActionButton label="APPLIED" color={C.green} onClick={() => onSetStatus(opp.id, "applied")} />}
         <ActionButton label="HIDE" onClick={() => onSetStatus(opp.id, "hidden")} />
       </div>
@@ -334,11 +340,15 @@ function SettingsTab({ providerConfig, searchConfig, onSave }: SettingsTabProps)
       </Field>
 
       <Field label={`${help.label} model`}>
-        <input
+        <select
           value={draftProvider.models[active]}
           onChange={(e) => setDraftProvider((p) => ({ ...p, models: { ...p.models, [active]: e.target.value } }))}
           style={inputStyle}
-        />
+        >
+          {PROVIDER_MODELS[active].map(({ id, label }) => (
+            <option key={id} value={id}>{label}</option>
+          ))}
+        </select>
       </Field>
 
       <div style={{ height: 1, background: C.line, margin: "20px 0" }} />
@@ -388,8 +398,8 @@ function SettingsTab({ providerConfig, searchConfig, onSave }: SettingsTabProps)
         </div>
         <div style={{ width: 110 }}>
           <Field label="Max results">
-            <input type="number" min={1} max={12} value={draftSearch.maxResults}
-              onChange={(e) => updateSearch("maxResults", Math.max(1, Math.min(12, Number(e.target.value) || 1)))}
+            <input type="number" min={1} max={30} value={draftSearch.maxResults}
+              onChange={(e) => updateSearch("maxResults", Math.max(1, Math.min(30, Number(e.target.value) || 1)))}
               style={inputStyle} />
           </Field>
         </div>
@@ -417,6 +427,7 @@ export default function App({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("radar");
   const [filter, setFilter] = useState<Filter>("all");
   const [scanning, setScanning] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
   const [statusLine, setStatusLine] = useState("");
   const bootRef = useRef(false);
 
@@ -486,6 +497,44 @@ export default function App({ onLock }: { onLock: () => void }) {
     setState(next);
     saveState(next);
     setScanning(false);
+  }
+
+  async function executeRecheck(): Promise<void> {
+    if (state === null || rechecking) return;
+    const jobs = Object.values(state.opportunities).filter(
+      (o) => (o.status === "new" || o.status === "saved") && o.url !== ""
+    );
+    if (jobs.length === 0) { setStatusLine("No listings to recheck"); return; }
+    setRechecking(true);
+    setStatusLine(`Rechecking ${jobs.length} listing${jobs.length === 1 ? "" : "s"}…`);
+    try {
+      const res = await fetch("/api/recheck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobs: jobs.map((o) => ({ id: o.id, url: o.url })) }),
+      });
+      if (!res.ok) throw new Error("Recheck request failed");
+      const data = await res.json() as { results: Array<{ id: string; alive: boolean }> };
+      const expired = data.results.filter((r) => !r.alive).map((r) => r.id);
+      if (expired.length > 0) {
+        setState((prev) => {
+          if (!prev) return prev;
+          const opps = { ...prev.opportunities };
+          for (const id of expired) {
+            if (opps[id]) opps[id] = { ...opps[id], status: "expired" };
+          }
+          const next = { ...prev, opportunities: opps };
+          saveState(next);
+          return next;
+        });
+        setStatusLine(`${expired.length} listing${expired.length === 1 ? "" : "s"} marked expired`);
+      } else {
+        setStatusLine("All listings still alive");
+      }
+    } catch {
+      setStatusLine("Recheck failed");
+    }
+    setRechecking(false);
   }
 
   function setStatus(id: string, status: OpportunityStatus): void {
@@ -567,9 +616,16 @@ export default function App({ onLock }: { onLock: () => void }) {
         </div>
       </div>
 
-      <div style={{ padding: "12px 16px", display: "flex", gap: 10, alignItems: "center" }}>
-        <button onClick={() => void executeScan()} disabled={scanning} style={scanButtonStyle}>
+      <div style={{ padding: "12px 16px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <button onClick={() => void executeScan()} disabled={scanning || rechecking} style={scanButtonStyle}>
           {scanning ? "Scanning…" : "Run scan now"}
+        </button>
+        <button onClick={() => void executeRecheck()} disabled={scanning || rechecking} style={{
+          fontFamily: fontDisplay, fontSize: 14, fontWeight: 700, letterSpacing: 1, padding: "10px 14px",
+          borderRadius: 5, border: `1px solid ${C.line}`, cursor: rechecking ? "wait" : "pointer",
+          background: "transparent", color: rechecking ? C.dim : C.steel, textTransform: "uppercase",
+        }}>
+          {rechecking ? "Rechecking…" : "Recheck listings"}
         </button>
         <span style={{ fontFamily: fontMono, fontSize: 11, color: C.dim, lineHeight: 1.4 }}>{statusLine}</span>
       </div>

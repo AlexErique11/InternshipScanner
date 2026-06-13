@@ -10,8 +10,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const MAX_KNOWN_SLUGS = 40;
-const MAX_SEARCHES = 5;
-const MAX_TOKENS = 2000;
+const MAX_SEARCHES = 8;
+const MAX_TOKENS = 8000;
 
 type Provider = "anthropic" | "openai" | "gemini";
 type Recency = "week" | "month" | "year" | "any";
@@ -73,7 +73,7 @@ function buildPrompt(config: SearchConfig, knownSlugs: string[]): string {
       ? config.programTypes.join(", ")
       : "internships and prestigious student programs";
   const known = knownSlugs.slice(0, MAX_KNOWN_SLUGS).join(", ") || "none";
-  const limit = Math.max(1, Math.min(config.maxResults, 12));
+  const limit = Math.max(1, Math.min(config.maxResults, 30));
 
   return `You are a recruiting scout that searches the web for opportunities for one specific candidate.
 
@@ -89,7 +89,9 @@ Today is ${today}. Use web search to find CURRENTLY OPEN or soon-opening opportu
 
 Respond with ONLY a raw JSON object — no markdown fences, no prose before or after:
 {"queries":["the search query you ran"],"findings":[{"company":"","title":"","type":"trading"|"swe","location":"","url":"","pay":"","deadline":"","why":"one short sentence on fit or prestige"}]}
-Return at most ${limit} findings. Use "trading" for quant/trading roles and "swe" for software roles. If a field is unknown use "". Only include real postings you actually found via search, with their real URLs.`;
+Return at most ${limit} findings. Use "trading" for quant/trading roles and "swe" for software roles. If a field is unknown use "".
+
+STRICT URL RULE: The url field must be the exact, complete URL copied verbatim from your web search result — the direct link to the specific job posting page. Never guess, construct, abbreviate, or modify a URL. Never use a company homepage or a generic /careers page. If you did not get a direct posting URL from a search result, leave url as "". A missing URL is far better than a wrong one.`;
 }
 
 // ---------- providers ----------
