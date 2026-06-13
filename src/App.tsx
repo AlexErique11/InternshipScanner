@@ -56,7 +56,7 @@ input::placeholder, textarea::placeholder { color: ${C.dim}; }
 `;
 
 type Tab = "radar" | "runs" | "settings";
-type Filter = "all" | "trading" | "swe" | "saved";
+type Filter = "all" | "trading" | "swe" | "saved" | "expired" | "hidden";
 
 const PROVIDER_HELP: Record<Provider, { label: string; url: string; note: string }> = {
   gemini: { label: "Gemini", url: "aistudio.google.com", note: "Often free with a student Google account." },
@@ -143,43 +143,63 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function OpportunityCard({ opp, onSetStatus }: { opp: Opportunity; onSetStatus: (id: string, status: OpportunityStatus) => void }) {
+function OpportunityCard({ opp, onSetStatus, onDelete }: {
+  opp: Opportunity;
+  onSetStatus: (id: string, status: OpportunityStatus) => void;
+  onDelete: (id: string) => void;
+}) {
   const isTrading = opp.type === "trading";
   const accent = isTrading ? C.amber : C.steel;
+  const isArchived = opp.status === "hidden" || opp.status === "expired";
   return (
     <div style={{
-      background: C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${accent}`,
+      background: C.panel, border: `1px solid ${C.line}`, borderLeft: `3px solid ${isArchived ? C.line : accent}`,
       borderRadius: 6, padding: "14px 14px 12px", marginBottom: 10,
+      opacity: isArchived ? 0.75 : 1,
     }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-        <Badge color={accent} filled={isTrading}>{isTrading ? "TRADING" : "SWE"}</Badge>
+        <Badge color={isArchived ? C.dim : accent} filled={isTrading && !isArchived}>{isTrading ? "TRADING" : "SWE"}</Badge>
         {opp.status === "new" && <Badge color={C.green}>▲ NEW</Badge>}
         {opp.status === "applied" && <Badge color={C.green} filled>APPLIED</Badge>}
         {opp.status === "saved" && <Badge color={C.steel}>SAVED</Badge>}
         {opp.status === "expired" && <Badge color={C.red}>EXPIRED</Badge>}
+        {opp.status === "hidden" && <Badge color={C.dim}>HIDDEN</Badge>}
       </div>
-      <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, lineHeight: 1.1, color: C.text, textTransform: "uppercase" }}>{opp.company}</div>
-      <div style={{ fontFamily: fontBody, fontSize: 14, color: C.text, margin: "3px 0 6px" }}>{opp.title}</div>
+      <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, lineHeight: 1.1, color: isArchived ? C.dim : C.text, textTransform: "uppercase" }}>{opp.company}</div>
+      <div style={{ fontFamily: fontBody, fontSize: 14, color: isArchived ? C.dim : C.text, margin: "3px 0 6px" }}>{opp.title}</div>
       <div style={{ fontFamily: fontMono, fontSize: 11, color: C.dim, display: "flex", gap: 14, flexWrap: "wrap" }}>
         {opp.location !== "" && <span>{opp.location}</span>}
-        {opp.pay !== "" && <span style={{ color: C.amber }}>{opp.pay}</span>}
+        {opp.pay !== "" && <span style={{ color: isArchived ? C.dim : C.amber }}>{opp.pay}</span>}
         {opp.deadline !== "" && <span>DL: {opp.deadline}</span>}
       </div>
       {opp.why !== "" && <div style={{ fontFamily: fontBody, fontSize: 12.5, color: C.dim, marginTop: 7, lineHeight: 1.45 }}>{opp.why}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
         {opp.url !== "" && (
           <a href={opp.url} target="_blank" rel="noopener noreferrer" style={{
-            fontFamily: fontMono, fontSize: 11, padding: "7px 12px", background: accent,
-            color: C.bg, borderRadius: 4, textDecoration: "none", fontWeight: 500,
-          }}>OPEN POSTING ↗</a>
+            fontFamily: fontMono, fontSize: 11, padding: "7px 12px",
+            background: isArchived ? "transparent" : accent,
+            color: isArchived ? C.dim : C.bg,
+            border: isArchived ? `1px solid ${C.line}` : "none",
+            borderRadius: 4, textDecoration: "none", fontWeight: 500,
+          }}>OPEN ↗</a>
         )}
         <a href={`https://www.google.com/search?q=${encodeURIComponent(`${opp.company} ${opp.title} internship apply`)}`} target="_blank" rel="noopener noreferrer" style={{
           fontFamily: fontMono, fontSize: 11, padding: "7px 12px", background: "transparent",
           color: C.dim, border: `1px solid ${C.line}`, borderRadius: 4, textDecoration: "none",
         }}>SEARCH ↗</a>
-        {opp.status !== "saved" && opp.status !== "expired" && <ActionButton label="SAVE" color={C.steel} onClick={() => onSetStatus(opp.id, "saved")} />}
-        {opp.status !== "applied" && <ActionButton label="APPLIED" color={C.green} onClick={() => onSetStatus(opp.id, "applied")} />}
-        <ActionButton label="HIDE" onClick={() => onSetStatus(opp.id, "hidden")} />
+        {isArchived && (
+          <ActionButton label="RESTORE" color={C.steel} onClick={() => onSetStatus(opp.id, "new")} />
+        )}
+        {!isArchived && opp.status === "new" && (
+          <ActionButton label="SAVE" color={C.steel} onClick={() => onSetStatus(opp.id, "saved")} />
+        )}
+        {!isArchived && opp.status !== "applied" && (
+          <ActionButton label="APPLIED" color={C.green} onClick={() => onSetStatus(opp.id, "applied")} />
+        )}
+        {opp.status !== "hidden" && (
+          <ActionButton label="HIDE" onClick={() => onSetStatus(opp.id, "hidden")} />
+        )}
+        <ActionButton label="DELETE" color={C.red} onClick={() => onDelete(opp.id)} />
       </div>
     </div>
   );
@@ -548,6 +568,17 @@ export default function App({ onLock }: { onLock: () => void }) {
     });
   }
 
+  function deleteOpportunity(id: string): void {
+    setState((previous) => {
+      if (previous === null) return previous;
+      const opps = { ...previous.opportunities };
+      delete opps[id];
+      const next: AppState = { ...previous, opportunities: opps };
+      saveState(next);
+      return next;
+    });
+  }
+
   function handleSaveSettings(provider: ProviderConfig, search: SearchConfig): void {
     setProviderConfig(provider);
     setSearchConfig(search);
@@ -557,15 +588,35 @@ export default function App({ onLock }: { onLock: () => void }) {
     setTab("radar");
   }
 
+  const counts = useMemo(() => {
+    if (state === null) return { all: 0, trading: 0, swe: 0, saved: 0, expired: 0, hidden: 0 };
+    const opps = Object.values(state.opportunities);
+    const active = opps.filter((o) => o.status !== "hidden" && o.status !== "expired");
+    return {
+      all: active.length,
+      trading: active.filter((o) => o.type === "trading").length,
+      swe: active.filter((o) => o.type === "swe").length,
+      saved: opps.filter((o) => o.status === "saved" || o.status === "applied").length,
+      expired: opps.filter((o) => o.status === "expired").length,
+      hidden: opps.filter((o) => o.status === "hidden").length,
+    };
+  }, [state]);
+
   const visible = useMemo<Opportunity[]>(() => {
     if (state === null) return [];
-    const notHidden = Object.values(state.opportunities).filter((o) => o.status !== "hidden");
-    const filtered = notHidden.filter((o) => {
-      if (filter === "trading") return o.type === "trading";
-      if (filter === "swe") return o.type === "swe";
-      if (filter === "saved") return o.status === "saved" || o.status === "applied";
-      return true;
-    });
+    const opps = Object.values(state.opportunities);
+    let filtered: Opportunity[];
+    if (filter === "hidden") {
+      filtered = opps.filter((o) => o.status === "hidden");
+    } else if (filter === "expired") {
+      filtered = opps.filter((o) => o.status === "expired");
+    } else {
+      const active = opps.filter((o) => o.status !== "hidden" && o.status !== "expired");
+      if (filter === "trading") filtered = active.filter((o) => o.type === "trading");
+      else if (filter === "swe") filtered = active.filter((o) => o.type === "swe");
+      else if (filter === "saved") filtered = active.filter((o) => o.status === "saved" || o.status === "applied");
+      else filtered = active;
+    }
     return filtered.sort((a, b) => (a.type === "trading" ? 0 : 1) - (b.type === "trading" ? 0 : 1) || b.firstSeen - a.firstSeen);
   }, [state, filter]);
 
@@ -643,21 +694,29 @@ export default function App({ onLock }: { onLock: () => void }) {
       <main style={{ padding: 16, maxWidth: 680, margin: "0 auto" }}>
         {tab === "radar" && (
           <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-              {([["all", "ALL"], ["trading", "TRADING"], ["swe", "SWE"], ["saved", "SAVED"]] as Array<[Filter, string]>).map(([key, label]) => (
+            <div style={{ display: "flex", gap: 7, marginBottom: 14, flexWrap: "wrap" }}>
+              {([
+                ["all",     `ALL (${counts.all})`,         C.steel],
+                ["trading", `TRADING (${counts.trading})`, C.amber],
+                ["swe",     `SWE (${counts.swe})`,         C.steel],
+                ["saved",   `SAVED (${counts.saved})`,     C.steel],
+                ["expired", `EXPIRED (${counts.expired})`, C.red],
+                ["hidden",  `HIDDEN (${counts.hidden})`,   C.dim],
+              ] as Array<[Filter, string, string]>).map(([key, label, accent]) => (
                 <button key={key} onClick={() => setFilter(key)} style={{
                   fontFamily: fontMono, fontSize: 10.5, letterSpacing: 1, padding: "5px 12px", borderRadius: 99, cursor: "pointer",
-                  background: filter === key ? C.panelUp : "transparent", color: filter === key ? C.text : C.dim,
-                  border: `1px solid ${filter === key ? C.steel : C.line}`,
+                  background: filter === key ? C.panelUp : "transparent",
+                  color: filter === key ? C.text : C.dim,
+                  border: `1px solid ${filter === key ? accent : C.line}`,
                 }}>{label}</button>
               ))}
             </div>
             {visible.length === 0 ? (
               <div style={{ fontFamily: fontMono, fontSize: 12, color: C.dim, textAlign: "center", padding: 30, lineHeight: 1.6 }}>
-                Nothing on the radar yet.<br />Run a scan to start tracking openings.
+                {filter === "expired" ? "No expired listings." : filter === "hidden" ? "No hidden listings." : "Nothing on the radar yet.\nRun a scan to start tracking openings."}
               </div>
             ) : (
-              visible.map((opp) => <OpportunityCard key={opp.id} opp={opp} onSetStatus={setStatus} />)
+              visible.map((opp) => <OpportunityCard key={opp.id} opp={opp} onSetStatus={setStatus} onDelete={deleteOpportunity} />)
             )}
           </>
         )}
